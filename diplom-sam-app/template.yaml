@@ -64,6 +64,122 @@ Resources:
         EntryPoints:
           - handlers.ts
 
+  DeleteOrder:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/OrderService
+      Handler: handlers.deleteOrderHandler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /order/{id}
+            Method: delete
+      Environment:
+        Variables:
+          ORDER_TABLE_NAME: OrderTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: OrderTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handlers.ts
+
+  UpdateOrder:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/OrderService
+      Handler: handlers.updateOrderHandler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /order/{id}
+            Method: put
+      Environment:
+        Variables:
+          ORDER_TABLE_NAME: OrderTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: OrderTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handlers.ts
+
+  CreateOrder:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/OrderService
+      Handler: handlers.createOrderHandler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /order
+            Method: post
+      Environment:
+        Variables:
+          ORDER_TABLE_NAME: OrderTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: OrderTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handlers.ts
+
+  GetAllOrders:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/OrderService
+      Handler: handlers.getAllOrdersHandler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /orders
+            Method: get
+      Environment:
+        Variables:
+          ORDER_TABLE_NAME: OrderTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: OrderTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handlers.ts
+
   ApplicationResourceGroup:
     Type: AWS::ResourceGroups::Group
     Properties:
