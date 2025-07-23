@@ -16,6 +16,7 @@ Globals:
       LogFormat: JSON
   Api:
     TracingEnabled: true
+
 Resources:
   OrderTable:
     Type: AWS::DynamoDB::Table
@@ -171,6 +172,169 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: OrderTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handlers.ts
+
+  ProductTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: shardId
+          AttributeType: S
+        - AttributeName: productId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shardId
+          KeyType: HASH
+        - AttributeName: productId
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      TableName: ProductTable
+
+  GetProduct:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/ProductService
+      Handler: handlers.getProductHandler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /product/{id}
+            Method: get
+      Environment:
+        Variables:
+          PRODUCT_TABLE_NAME: ProductTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: ProductTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handlers.ts
+
+  DeleteProduct:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/ProductService
+      Handler: handlers.deleteProductHandler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /product/{id}
+            Method: delete
+      Environment:
+        Variables:
+          PRODUCT_TABLE_NAME: ProductTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: ProductTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handlers.ts
+
+  UpdateProduct:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/ProductService
+      Handler: handlers.updateProductHandler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /product/{id}
+            Method: put
+      Environment:
+        Variables:
+          PRODUCT_TABLE_NAME: ProductTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: ProductTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handlers.ts
+
+  CreateProduct:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/ProductService
+      Handler: handlers.createProductHandler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /product
+            Method: post
+      Environment:
+        Variables:
+          PRODUCT_TABLE_NAME: ProductTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: ProductTable
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints:
+          - handlers.ts
+
+  GetAllProductss:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/ProductService
+      Handler: handlers.getAllProductsHandler
+      Runtime: nodejs22.x
+      Architectures:
+        - x86_64
+      Events:
+        GetOrder:
+          Type: Api
+          Properties:
+            Path: /products
+            Method: get
+      Environment:
+        Variables:
+          PRODUCT_TABLE_NAME: ProductTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: ProductTable
     Metadata:
       BuildMethod: esbuild
       BuildProperties:
