@@ -5,8 +5,7 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint . --ext .ts",
-    "test": "jest",
-    "prepare": "husky"
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
