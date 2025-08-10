@@ -1,121 +1,58 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import {
-  DeleteCommand,
-  DeleteCommandOutput,
-  DynamoDBDocumentClient,
-  GetCommand,
-  PutCommand,
-  ScanCommand,
-  TranslateConfig,
-  UpdateCommand,
-} from "@aws-sdk/lib-dynamodb";
-import { Category, Product } from "./product-model";
+// src/ProductService/product-service-dal.ts
+import { BaseRepo } from "../shared/base-repo";
+import { randShard, parseKey } from "../shared/keys";
 import { v4 as uuidv4 } from "uuid";
-import { unmarshall } from "@aws-sdk/util-dynamodb";
+import { Product, Category } from "./product-model";
 
-const TABLE_NAME = process.env.PRODUCT_TABLE_NAME;
+const TABLE_NAME = process.env.PRODUCT_TABLE_NAME!;
 
-const client = new DynamoDBClient({ region: "eu-central-1" });
+const repo = new BaseRepo<Product>(
+  TABLE_NAME,
+  { shardId: "shardId", id: "productId" },
+  (raw) => Product.fromItem(raw),
+  (p) => ({
+    sku: p.sku,
+    name: p.name,
+    price: p.price,
+    category: { id: p.category.id, name: p.category.name },
+  })
+);
 
-const translateConfig: TranslateConfig = {
-  marshallOptions: {
-    convertEmptyValues: false,
-    removeUndefinedValues: true,
-    convertClassInstanceToMap: true,
-  },
-  unmarshallOptions: {
-    wrapNumbers: false,
-  },
+export const getProduct = async (_evt: any, key: string) => {
+  const { shardId, id } = parseKey(key);
+  return repo.get({ shardId, productId: id });
 };
 
-const ddbDocClient = DynamoDBDocumentClient.from(client, translateConfig);
+export const getAllProducts = async (_evt: any) => repo.scan();
 
-const suffix_start = 1;
-const suffix_end = 11;
-
-export const getProduct = async (
-  event: any,
-  key: string
-): Promise<Product | null> => {
-  const [shardId, productId] = key.split(":");
-  const command = new GetCommand({
-    TableName: TABLE_NAME,
-    Key: { shardId, productId },
-    ReturnConsumedCapacity: "TOTAL",
-  });
-  const response = await ddbDocClient.send(command);
-  if (!response.Item) return null;
-  const product = Product.fromItem(response.Item);
-  return product;
-};
-
-export const getAllProducts = async (event: any): Promise<Product[]> => {
-  const command = new ScanCommand({
-    TableName: TABLE_NAME,
-  });
-  const response = await ddbDocClient.send(command);
-  if (!response.Items) {
-    return [];
-  }
-  return response.Items.map((item) => Product.fromItem(item));
-};
-
-export const deleteProduct = async (
-  event: any,
-  key: string
-): Promise<DeleteCommandOutput | null> => {
-  const [shardId, productId] = key.split(":");
-  const command = new DeleteCommand({
-    TableName: TABLE_NAME,
-    Key: { shardId, productId },
-    ReturnValues: "ALL_OLD",
-  });
-  const response = await ddbDocClient.send(command);
-  if (!response.Attributes) {
-    return null;
-  }
-  return response;
+export const deleteProduct = async (_evt: any, key: string) => {
+  const { shardId, id } = parseKey(key);
+  return repo.delete({ shardId, productId: id });
 };
 
 export const updateProduct = async (
-  event: any,
-  payload: any,
+  _evt: any,
+  payload: Partial<Product>,
   key: string
-): Promise<Product | null> => {
-  const [shardId, productId] = key.split(":");
-
-  const updateExpression =
-    "SET sku = :sku, name = :name, price = :price, category = :category";
-  const expressionAttributeValues = {
-    ":sku": payload.sku,
-    ":name": payload.name,
-    ":price": payload.price,
-    ":category": payload.category,
-  };
-  const command = new UpdateCommand({
-    TableName: TABLE_NAME,
-    Key: { shardId, productId },
-    UpdateExpression: updateExpression,
-    ExpressionAttributeValues: expressionAttributeValues,
-    ReturnValues: "ALL_NEW",
-  });
-  const response = await ddbDocClient.send(command);
-  if (!response.Attributes) {
-    return null;
-  }
-  const product = Product.fromItem(response.Attributes);
-  return product;
+) => {
+  const { shardId, id } = parseKey(key);
+  return repo.update(
+    { shardId, productId: id },
+    {
+      sku: payload.sku,
+      name: payload.name,
+      price: payload.price,
+      category: payload.category,
+    }
+  );
 };
 
 export const createProduct = async (
-  event: any,
-  payload: Product
-): Promise<Product | null> => {
-  const shardId = String(
-    Math.floor(Math.random() * (suffix_end - suffix_start) + suffix_start)
-  );
-  const productId = String(uuidv4());
-
+  _evt: any,
+  payload: Omit<Product, "shardId" | "productId">
+) => {
+  const shardId = randShard();
+  const productId = uuidv4();
   const product = new Product(
     shardId,
     productId,
@@ -124,20 +61,5 @@ export const createProduct = async (
     payload.price,
     new Category(payload.category.id, payload.category.name)
   );
-  const command = new PutCommand({
-    TableName: TABLE_NAME,
-    Item: {
-      shardId,
-      productId,
-      sku: product.sku,
-      name: product.name,
-      price: product.price,
-      category: {
-        id: product.category.id,
-        name: product.category.name,
-      },
-    },
-  });
-  await ddbDocClient.send(command);
-  return product;
+  return repo.put(product);
 };

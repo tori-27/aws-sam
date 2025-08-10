@@ -38,20 +38,10 @@ describe("order_service_dal", () => {
     mockSend.mockResolvedValueOnce({
       Items: [
         {
-          shardId: { S: "1" },
-          orderId: { S: "abc" },
-          orderName: { S: "Test Order" },
-          orderProducts: {
-            L: [
-              {
-                M: {
-                  productId: { S: "1" },
-                  price: { N: "5" },
-                  quantity: { N: "2" },
-                },
-              },
-            ],
-          },
+          shardId: "1",
+          orderId: "abc",
+          orderName: "Test Order",
+          orderProducts: [{ productId: "1", price: 5, quantity: 2 }],
         },
       ],
     });
@@ -73,7 +63,7 @@ describe("order_service_dal", () => {
 
     const result = await dal.deleteOrder(null, "1:abc");
     expect(result).toBeDefined();
-    expect(result?.Attributes?.orderName).toBe("Old Order");
+    expect(result?.orderName).toBe("Old Order");
   });
 
   it("deleteOrder: should return null if no item found", async () => {

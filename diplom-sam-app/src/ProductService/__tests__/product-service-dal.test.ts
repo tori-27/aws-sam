@@ -64,7 +64,7 @@ describe("product_service_dal", () => {
 
     const result = await dal.deleteProduct(null, "1:abc");
     expect(result).toBeDefined();
-    expect(result?.Attributes?.sku).toBe("123");
+    expect(result?.sku).toBe("123");
   });
 
   it("deleteProduct: should return null if no item found", async () => {
