@@ -26,6 +26,7 @@
     "@aws-sdk/lib-dynamodb": "^3.846.0",
     "@aws-sdk/util-dynamodb": "^3.848.0",
     "client-cognito-identity-provider": "github:aws-sdk/client-cognito-identity-provider",
+    "client-ssm": "github:aws-sdk/client-ssm",
     "uuid": "^11.1.0"
   }
 }

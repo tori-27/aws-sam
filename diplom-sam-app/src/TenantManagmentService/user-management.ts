@@ -44,7 +44,6 @@ export const createTenantAdminUser: APIGatewayProxyHandlerV2 = async (
       })
     );
 
-    // створюємо групу=tenantId (одноразово можна робити в окремому воркері; в MVP просто add, якщо є)
     try {
       await cognito.send(
         new AdminAddUserToGroupCommand({
@@ -53,9 +52,7 @@ export const createTenantAdminUser: APIGatewayProxyHandlerV2 = async (
           GroupName: body.tenantId,
         })
       );
-    } catch {
-      /* групи може не бути — на MVP можна пропустити або створювати поза цим хендлером */
-    }
+    } catch {}
 
     return ok({
       userPoolId: pooledUserPoolId,
@@ -67,7 +64,6 @@ export const createTenantAdminUser: APIGatewayProxyHandlerV2 = async (
   }
 };
 
-// приклади інших ендпоінтів — за потреби доробиш авторизаційні перевірки
 export const getUsers: APIGatewayProxyHandlerV2 = async (event) => {
   try {
     const auth = pickAuth(event);
@@ -106,7 +102,6 @@ export const disableUsersByTenant: APIGatewayProxyHandlerV2 = async (event) => {
       typeof event.body === "string" ? JSON.parse(event.body) : event.body;
     const { tenantId, userPoolId } = body;
 
-    // дістаємо юзерів із TenantUserMapping
     const res = await ddb.send(
       new QueryCommand({
         TableName: TABLE_TENANT_USER_MAPPING!,

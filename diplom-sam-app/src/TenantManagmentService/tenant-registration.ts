@@ -4,30 +4,21 @@ import { v4 as uuidv4 } from "uuid";
 import { Tenant, TenantTier } from "./tenant-model";
 import { ok, serverError } from "../shared/utils";
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
+import { getParameter } from "../shared/ssm";
 
 const {
-  PLATINUM_TIER_API_KEY,
-  PREMIUM_TIER_API_KEY,
-  STANDARD_TIER_API_KEY,
-  BASIC_TIER_API_KEY,
   CREATE_TENANT_ADMIN_USER_RESOURCE_PATH,
   CREATE_TENANT_RESOURCE_PATH,
   PROVISION_TENANT_RESOURCE_PATH,
   AWS_REGION,
 } = process.env;
 
-const apiKeyByTier = (tier: TenantTier): string => {
-  switch (tier) {
-    case "PLATINUM":
-      return PLATINUM_TIER_API_KEY!;
-    case "PREMIUM":
-      return PREMIUM_TIER_API_KEY!;
-    case "STANDARD":
-      return STANDARD_TIER_API_KEY!;
-    case "BASIC":
-      return BASIC_TIER_API_KEY!;
-  }
-};
+const paramByTier = {
+  PLATINUM: "/api-keys/platinum",
+  PREMIUM: "/api-keys/premium",
+  STANDARD: "/api-keys/standard",
+  BASIC: "/api-keys/basic",
+} as const;
 
 const abs = (host: string, stage: string, path: string) =>
   `https://${host}/${stage}${path}`;
@@ -41,7 +32,10 @@ export const registerTenant: APIGatewayProxyHandlerV2 = async (event) => {
     const host = event.headers["host"] || event.headers["Host"]!;
     const body = JSON.parse(event.body || "{}");
 
-    const tier = String(body.tenantTier || "BASIC").toUpperCase() as TenantTier;
+    const tier = String(
+      body.tenantTier || "BASIC"
+    ).toUpperCase() as keyof typeof paramByTier;
+    const apiKey = await getParameter(paramByTier[tier], { decrypt: true });
     const dedicated = tier === "PLATINUM" ? "true" : "false";
 
     const base: Partial<Tenant> = {
@@ -52,7 +46,7 @@ export const registerTenant: APIGatewayProxyHandlerV2 = async (event) => {
       tenantPhone: body.tenantPhone,
       tenantTier: tier,
       dedicatedTenancy: dedicated,
-      apiKey: apiKeyByTier(tier),
+      apiKey: apiKey,
     } as any;
 
     const createAdminRes = await fetch(

@@ -48,7 +48,6 @@ export const createTenant: APIGatewayProxyHandlerV2 = async (event) => {
 export const getTenants: APIGatewayProxyHandlerV2 = async (event) => {
   try {
     const { ddb } = getTable(event);
-    // за бажанням тут перевірка ролі SystemAdmin
     const res = await ddb.send(
       new ScanCommand({ TableName: TABLE_TENANT_DETAILS })
     );
@@ -64,7 +63,6 @@ export const updateTenant: APIGatewayProxyHandlerV2 = async (event) => {
     const tenantId = event.pathParameters?.tenantid!;
     const body = JSON.parse(event.body || "{}") as Partial<Tenant>;
 
-    // (MVP) без складних rule-перевірок: припускаємо, що авторизований SystemAdmin або TenantAdmin свого тенанта
     const existing = await ddb.send(
       new GetCommand({ TableName: TABLE_TENANT_DETAILS, Key: { tenantId } })
     );
@@ -129,9 +127,6 @@ export const setTenantActive =
         })
       );
 
-      // (MVP) виклики enable/disable users — через API Gateway шляхи з IAM policy (можеш залишити як stub)
-      // await fetch(... ENABLE_USERS_BY_TENANT / DISABLE_USERS_BY_TENANT ...)
-
       return ok(isActive ? "Tenant Activated" : "Tenant Deactivated");
     } catch (e) {
       return serverError(e);
@@ -141,7 +136,6 @@ export const setTenantActive =
 export const activateTenant = setTenantActive(true);
 export const deactivateTenant = setTenantActive(false);
 
-// Для логіна клієнта (Next.js) — отримати userPool/appClient/apiGatewayUrl за tenantName
 export const loadTenantConfig: APIGatewayProxyHandlerV2 = async (
   event: any
 ) => {
@@ -151,7 +145,7 @@ export const loadTenantConfig: APIGatewayProxyHandlerV2 = async (
     const res = await ddb.send(
       new QueryCommand({
         TableName: TABLE_TENANT_DETAILS,
-        IndexName: "ServerlessSaas-TenantConfig", // GSI: PK=tenantName
+        IndexName: "ServerlessSaas-TenantConfig",
         KeyConditionExpression: "tenantName = :n",
         ProjectionExpression: "userPoolId, appClientId, apiGatewayUrl",
         ExpressionAttributeValues: { ":n": tenantName },
