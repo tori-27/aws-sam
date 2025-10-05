@@ -1,7 +1,14 @@
 import { BaseRepo } from "../shared/base-repo";
-import { randShard, parseKey } from "../shared/keys";
+import {
+  randShard,
+  parseKey,
+  shardForTenant,
+  getTenantId,
+  allShardsForTenant,
+} from "../shared/tenant";
 import { v4 as uuidv4 } from "uuid";
 import { Order } from "./order-model";
+import { ddbDocClient } from "../shared/ddb";
 
 const TABLE_NAME = process.env.ORDER_TABLE_NAME!;
 
@@ -17,7 +24,14 @@ export const getOrder = async (_evt: any, key: string) => {
   return repo.get({ shardId, orderId: id });
 };
 
-export const getAllOrders = async (_evt: any) => repo.scan();
+export const getAllOrders = async (evt: any) => {
+  const tenantId = getTenantId(evt);
+  const shards = allShardsForTenant(tenantId, 1, 10);
+  const results = await Promise.all(
+    shards.map((s) => repo.queryByShard(ddbDocClient, s))
+  );
+  return results.flat();
+};
 
 export const deleteOrder = async (_evt: any, key: string) => {
   const { shardId, id } = parseKey(key);
@@ -37,10 +51,11 @@ export const updateOrder = async (
 };
 
 export const createOrder = async (
-  _evt: any,
+  evt: any,
   payload: Pick<Order, "orderName" | "orderProducts">
 ) => {
-  const shardId = randShard();
+  const tenantId = getTenantId(evt);
+  const shardId = shardForTenant(tenantId);
   const orderId = uuidv4();
   const order = new Order(
     shardId,

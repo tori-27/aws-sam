@@ -31,6 +31,18 @@ export class Product {
       category
     );
   }
+
+  toItem() {
+    const [shardId, productId] = this.key.split(":");
+    return {
+      shardId,
+      productId,
+      sku: this.sku,
+      name: this.name,
+      price: this.price,
+      category: { id: this.category.id, name: this.category.name },
+    };
+  }
 }
 
 export class Category {

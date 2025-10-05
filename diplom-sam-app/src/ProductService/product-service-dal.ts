@@ -1,8 +1,14 @@
-// src/ProductService/product-service-dal.ts
 import { BaseRepo } from "../shared/base-repo";
-import { randShard, parseKey } from "../shared/keys";
+import {
+  randShard,
+  parseKey,
+  allShardsForTenant,
+  getTenantId,
+  shardForTenant,
+} from "../shared/tenant";
 import { v4 as uuidv4 } from "uuid";
 import { Product, Category } from "./product-model";
+import { ddbDocClient } from "../shared/ddb";
 
 const TABLE_NAME = process.env.PRODUCT_TABLE_NAME!;
 
@@ -10,12 +16,7 @@ const repo = new BaseRepo<Product>(
   TABLE_NAME,
   { shardId: "shardId", id: "productId" },
   (raw) => Product.fromItem(raw),
-  (p) => ({
-    sku: p.sku,
-    name: p.name,
-    price: p.price,
-    category: { id: p.category.id, name: p.category.name },
-  })
+  (p) => p.toItem()
 );
 
 export const getProduct = async (_evt: any, key: string) => {
@@ -23,8 +24,15 @@ export const getProduct = async (_evt: any, key: string) => {
   return repo.get({ shardId, productId: id });
 };
 
-export const getAllProducts = async (_evt: any) => repo.scan();
+export const getAllProducts = async (evt: any) => {
+  const tenantId = getTenantId(evt);
+  const shards = allShardsForTenant(tenantId, 1, 10);
 
+  const results = await Promise.all(
+    shards.map((s) => repo.queryByShard(ddbDocClient, s))
+  );
+  return results.flat();
+};
 export const deleteProduct = async (_evt: any, key: string) => {
   const { shardId, id } = parseKey(key);
   return repo.delete({ shardId, productId: id });
@@ -48,12 +56,18 @@ export const updateProduct = async (
 };
 
 export const createProduct = async (
-  _evt: any,
-  payload: Omit<Product, "shardId" | "productId">
+  evt: any,
+  payload: {
+    sku: string;
+    name: string;
+    price: number;
+    category: { id: string; name: string };
+  }
 ) => {
-  const shardId = randShard();
+  const tenantId = getTenantId(evt);
+  const shardId = shardForTenant(tenantId);
   const productId = uuidv4();
-  const product = new Product(
+  const p = new Product(
     shardId,
     productId,
     payload.sku,
@@ -61,5 +75,5 @@ export const createProduct = async (
     payload.price,
     new Category(payload.category.id, payload.category.name)
   );
-  return repo.put(product);
+  return repo.put(p);
 };

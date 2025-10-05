@@ -12,5 +12,6 @@ jest.mock("@aws-sdk/lib-dynamodb", () => {
     UpdateCommand: jest.fn(),
     DeleteCommand: jest.fn(),
     ScanCommand: jest.fn(),
+    QueryCommand: jest.fn(function QueryCommand() {}),
   };
 });

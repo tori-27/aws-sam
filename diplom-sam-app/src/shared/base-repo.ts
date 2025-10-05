@@ -4,6 +4,8 @@ import {
   UpdateCommand,
   DeleteCommand,
   ScanCommand,
+  QueryCommand,
+  DynamoDBDocumentClient,
 } from "@aws-sdk/lib-dynamodb";
 import { ddbDocClient } from "./ddb";
 
@@ -61,6 +63,8 @@ export class BaseRepo<TItem extends Record<string, any>> {
       sets.push(`${nk} = ${vk}`);
     });
 
+    if (sets.length === 0) return this.get(key);
+
     const res = await ddbDocClient.send(
       new UpdateCommand({
         TableName: this.tableName,
@@ -83,5 +87,17 @@ export class BaseRepo<TItem extends Record<string, any>> {
       })
     );
     return res.Attributes ? this.fromItem(res.Attributes) : null;
+  }
+
+  async queryByShard(ddb: DynamoDBDocumentClient, shardId: string) {
+    const r = await ddb.send(
+      new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: "#pk = :v",
+        ExpressionAttributeNames: { "#pk": "shardId" },
+        ExpressionAttributeValues: { ":v": shardId },
+      })
+    );
+    return (r.Items ?? []).map(this.fromItem);
   }
 }
