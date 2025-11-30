@@ -36,7 +36,9 @@ export const registerTenant: APIGatewayProxyHandlerV2 = async (event) => {
       body.tenantTier || "BASIC"
     ).toUpperCase() as keyof typeof paramByTier;
     const apiKey = await getParameter(paramByTier[tier], { decrypt: true });
-    const dedicated = tier === "PLATINUM" ? "true" : "false";
+    // PLATINUM and PREMIUM get dedicated tenancy (silo model)
+    const dedicated =
+      tier === "PLATINUM" || tier === "PREMIUM" ? "true" : "false";
 
     const base: Partial<Tenant> = {
       tenantId: body.tenantId,
