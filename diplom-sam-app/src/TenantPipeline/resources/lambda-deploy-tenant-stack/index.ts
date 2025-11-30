@@ -44,14 +44,26 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-// Find artifact in artifacts list
-function findArtifact(artifacts: any[], name: string): any {
-  for (const artifact of artifacts) {
-    if (artifact.name === name) {
-      return artifact;
-    }
+// Find artifact in artifacts list - returns first artifact if name not specified or not found
+function findArtifact(artifacts: any[], name?: string): any {
+  if (!artifacts || artifacts.length === 0) {
+    throw new Error("No input artifacts found in event");
   }
-  throw new Error(`Input artifact named "${name}" not found in event`);
+
+  // If name specified, try to find it
+  if (name) {
+    for (const artifact of artifacts) {
+      if (artifact.name === name) {
+        return artifact;
+      }
+    }
+    console.log(
+      `Artifact "${name}" not found, using first available artifact: ${artifacts[0].name}`
+    );
+  }
+
+  // Return first artifact
+  return artifacts[0];
 }
 
 // Get template URL from S3 artifact
@@ -299,7 +311,6 @@ async function checkStackUpdateStatus(
 
 // Get user parameters from job data
 function getUserParams(jobData: any): {
-  artifact: string;
   template_file: string;
   commit_id: string;
 } {
@@ -307,12 +318,6 @@ function getUserParams(jobData: any): {
     const userParameters =
       jobData.actionConfiguration.configuration.UserParameters;
     const decodedParameters = JSON.parse(userParameters);
-
-    if (!decodedParameters.artifact) {
-      throw new Error(
-        "Your UserParameters JSON must include the artifact name"
-      );
-    }
 
     if (!decodedParameters.template_file) {
       throw new Error(
@@ -337,7 +342,7 @@ export const handler = async (event: any): Promise<string> => {
     const params = getUserParams(jobData);
 
     const artifacts = jobData.inputArtifacts;
-    const { artifact, template_file, commit_id } = params;
+    const { template_file, commit_id } = params;
 
     // Get artifact bucket from environment or first artifact location
     const artifactBucket =
@@ -378,7 +383,8 @@ export const handler = async (event: any): Promise<string> => {
         await checkStackUpdateStatus(jobId, stackName);
       } else {
         // First run - get template and start deployment
-        const artifactData = findArtifact(artifacts, artifact);
+        // Use first input artifact (BuildArtifact)
+        const artifactData = findArtifact(artifacts);
         const templateUrl = await getTemplateUrl(
           artifactData,
           template_file,

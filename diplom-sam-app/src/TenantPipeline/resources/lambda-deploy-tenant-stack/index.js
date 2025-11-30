@@ -2758,12 +2758,20 @@ async function streamToBuffer(stream) {
   return Buffer.concat(chunks);
 }
 function findArtifact(artifacts, name) {
-  for (const artifact of artifacts) {
-    if (artifact.name === name) {
-      return artifact;
-    }
+  if (!artifacts || artifacts.length === 0) {
+    throw new Error("No input artifacts found in event");
   }
-  throw new Error(`Input artifact named "${name}" not found in event`);
+  if (name) {
+    for (const artifact of artifacts) {
+      if (artifact.name === name) {
+        return artifact;
+      }
+    }
+    console.log(
+      `Artifact "${name}" not found, using first available artifact: ${artifacts[0].name}`
+    );
+  }
+  return artifacts[0];
 }
 async function getTemplateUrl(artifact, fileInZip, bucket) {
   const artifactBucket = artifact.location.s3Location.bucketName;
@@ -2939,11 +2947,6 @@ function getUserParams(jobData) {
   try {
     const userParameters = jobData.actionConfiguration.configuration.UserParameters;
     const decodedParameters = JSON.parse(userParameters);
-    if (!decodedParameters.artifact) {
-      throw new Error(
-        "Your UserParameters JSON must include the artifact name"
-      );
-    }
     if (!decodedParameters.template_file) {
       throw new Error(
         "Your UserParameters JSON must include the template file name"
@@ -2961,7 +2964,7 @@ var handler = async (event) => {
     const jobData = event["CodePipeline.job"].data;
     const params = getUserParams(jobData);
     const artifacts = jobData.inputArtifacts;
-    const { artifact, template_file, commit_id } = params;
+    const { template_file, commit_id } = params;
     const artifactBucket = process.env.BUCKET || artifacts[0]?.location?.s3Location?.bucketName || "";
     const mappings = await dynamo.send(
       new import_client_dynamodb.ScanCommand({
@@ -2986,7 +2989,7 @@ var handler = async (event) => {
       if (jobData.continuationToken) {
         await checkStackUpdateStatus(jobId, stackName);
       } else {
-        const artifactData = findArtifact(artifacts, artifact);
+        const artifactData = findArtifact(artifacts);
         const templateUrl = await getTemplateUrl(
           artifactData,
           template_file,

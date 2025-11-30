@@ -84,7 +84,6 @@ export class ServerlessSaasStack extends Stack {
 
     const sourceOutput = new codepipeline.Artifact("SourceArtifact");
     const buildOutput = new codepipeline.Artifact("BuildArtifact");
-    const deployOutput = new codepipeline.Artifact("DeployArtifact");
 
     //
     // 4. CodeBuild project - uses tenant-buildspec.yml
@@ -147,9 +146,7 @@ export class ServerlessSaasStack extends Stack {
           actionName: "DeployTenantStack",
           lambda: deployLambda,
           inputs: [buildOutput],
-          outputs: [deployOutput],
           userParameters: {
-            artifact: "Artifact_Build_Build-Serverless-SaaS",
             template_file: "packaged.yaml",
             commit_id: "#{SourceVariables.CommitId}",
           },
