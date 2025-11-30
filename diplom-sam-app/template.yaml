@@ -107,6 +107,18 @@ Resources:
             - { AttributeName: tenantId, KeyType: RANGE }
           Projection: { ProjectionType: ALL }
 
+  TenantStackMappingTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TenantStackMapping
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+
   ########################
   # Cognito (pooled tenant)
   ########################
@@ -764,21 +776,33 @@ Resources:
       CodeUri: src/TenantManagmentService
       Handler: tenant-provisioning.provisionTenant
       Events:
-        {
-          ApiPost:
-            { Type: Api, Properties: { Path: /provisioning, Method: post } },
-        }
+        ApiPost:
+          Type: Api
+          Properties:
+            Path: /provisioning
+            Method: post
+      Environment:
+        Variables:
+          TENANT_STACK_MAPPING_TABLE_NAME: !Ref TenantStackMappingTable
+          PIPELINE_NAME: "serverless-saas-pipeline"
+      Policies:
+        # доступ до DynamoDB таблиці TenantStackMapping
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantStackMappingTable
+
+        # дозвіл стартувати CodePipeline
+        - Statement:
+            - Effect: Allow
+              Action:
+                - codepipeline:StartPipelineExecution
+              Resource: "*" # можна потім звузити до конкретного пайплайна
     Metadata:
-      {
-        BuildMethod: esbuild,
-        BuildProperties:
-          {
-            Minify: true,
-            Target: es2020,
-            Sourcemap: true,
-            EntryPoints: [tenant-provisioning.ts],
-          },
-      }
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints: [tenant-provisioning.ts]
 
   DeProvisionTenantFn:
     Type: AWS::Serverless::Function
@@ -786,24 +810,29 @@ Resources:
       CodeUri: src/TenantManagmentService
       Handler: tenant-provisioning.deprovisionTenant
       Events:
-        {
-          ApiPut:
-            {
-              Type: Api,
-              Properties: { Path: "/provisioning/{tenantid}", Method: put },
-            },
-        }
+        ApiPut:
+          Type: Api
+          Properties:
+            Path: /provisioning/{tenantid}
+            Method: put
+      Environment:
+        Variables:
+          TENANT_STACK_MAPPING_TABLE_NAME: !Ref TenantStackMappingTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantStackMappingTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cloudformation:DeleteStack
+              Resource: "*" # можеш звузити до arn стека кожного тенанта
     Metadata:
-      {
-        BuildMethod: esbuild,
-        BuildProperties:
-          {
-            Minify: true,
-            Target: es2020,
-            Sourcemap: true,
-            EntryPoints: [tenant-provisioning.ts],
-          },
-      }
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints: [tenant-provisioning.ts]
 
   ########################
   # (Optional) App Insights
@@ -833,3 +862,5 @@ Outputs:
     Value: !Ref PooledUserPool
   PooledUserPoolClientId:
     Value: !Ref PooledUserPoolClient
+  TenantStackMappingTableName:
+    Value: !Ref TenantStackMappingTable

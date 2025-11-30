@@ -1,0 +1,36 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      # Install SAM CLI
+      - npm install -g aws-sam-cli
+      - sam --version
+      # Navigate to diplom-sam-app directory (for GitHub repo structure)
+      - cd diplom-sam-app
+      # Install project dependencies
+      - npm ci
+
+  pre_build:
+    commands:
+      # Compile TypeScript
+      - npm run build
+      # Run tests (optional)
+      # - npm test
+
+  build:
+    commands:
+      # Build SAM application using tenant-template.yaml
+      - sam build -t tenant-template.yaml
+
+  post_build:
+    commands:
+      # Package and upload to S3
+      - sam package --s3-bucket $PACKAGE_BUCKET --output-template-file packaged.yaml
+
+artifacts:
+  discard-paths: yes
+  files:
+    - diplom-sam-app/packaged.yaml

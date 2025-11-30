@@ -1,0 +1,36 @@
+# Lab6 - навчальний проект, не комітити
+Lab6/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+.aws-sam/
+dist/
+*.js.map
+cdk.out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# SAM
+samconfig.toml
+
+# CDK
+cdk.context.json
