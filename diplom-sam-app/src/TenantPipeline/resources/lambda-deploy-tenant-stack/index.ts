@@ -3,6 +3,7 @@ import {
   DescribeStacksCommand,
   UpdateStackCommand,
   CreateStackCommand,
+  DeleteStackCommand,
 } from "@aws-sdk/client-cloudformation";
 import {
   DynamoDBClient,
@@ -249,6 +250,25 @@ async function continueJobLater(jobId: string, message: string): Promise<void> {
   );
 }
 
+// Delete stack and wait for deletion
+async function deleteStack(stackName: string): Promise<void> {
+  console.log(`Deleting stack: ${stackName}`);
+  await cf.send(new DeleteStackCommand({ StackName: stackName }));
+
+  // Wait for deletion to complete (simple polling)
+  let attempts = 0;
+  const maxAttempts = 60; // 5 minutes max wait
+  while (attempts < maxAttempts) {
+    await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
+    if (!(await stackExists(stackName))) {
+      console.log(`Stack ${stackName} deleted successfully`);
+      return;
+    }
+    attempts++;
+  }
+  throw new Error(`Stack ${stackName} deletion timed out`);
+}
+
 // Start update or create
 async function startUpdateOrCreate(
   jobId: string,
@@ -259,10 +279,23 @@ async function startUpdateOrCreate(
   if (await stackExists(stack)) {
     const status = await getStackStatus(stack);
 
+    // If stack is in ROLLBACK_COMPLETE, delete it first and create new
+    if (status === "ROLLBACK_COMPLETE") {
+      console.log(
+        `Stack ${stack} is in ROLLBACK_COMPLETE, deleting and recreating...`
+      );
+      await deleteStack(stack);
+      await createStack(stack, templateUrl, params);
+      await continueJobLater(jobId, "Stack recreated after ROLLBACK_COMPLETE");
+      return;
+    }
+
     if (
-      !["CREATE_COMPLETE", "ROLLBACK_COMPLETE", "UPDATE_COMPLETE"].includes(
-        status
-      )
+      ![
+        "CREATE_COMPLETE",
+        "UPDATE_COMPLETE",
+        "UPDATE_ROLLBACK_COMPLETE",
+      ].includes(status)
     ) {
       await putJobFailure(
         jobId,

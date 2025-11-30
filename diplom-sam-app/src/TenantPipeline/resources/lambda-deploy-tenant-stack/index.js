@@ -2903,12 +2903,38 @@ async function continueJobLater(jobId, message) {
     })
   );
 }
+async function deleteStack(stackName) {
+  console.log(`Deleting stack: ${stackName}`);
+  await cf.send(new import_client_cloudformation.DeleteStackCommand({ StackName: stackName }));
+  let attempts = 0;
+  const maxAttempts = 60;
+  while (attempts < maxAttempts) {
+    await new Promise((resolve) => setTimeout(resolve, 5e3));
+    if (!await stackExists(stackName)) {
+      console.log(`Stack ${stackName} deleted successfully`);
+      return;
+    }
+    attempts++;
+  }
+  throw new Error(`Stack ${stackName} deletion timed out`);
+}
 async function startUpdateOrCreate(jobId, stack, templateUrl, params) {
   if (await stackExists(stack)) {
     const status = await getStackStatus(stack);
-    if (!["CREATE_COMPLETE", "ROLLBACK_COMPLETE", "UPDATE_COMPLETE"].includes(
-      status
-    )) {
+    if (status === "ROLLBACK_COMPLETE") {
+      console.log(
+        `Stack ${stack} is in ROLLBACK_COMPLETE, deleting and recreating...`
+      );
+      await deleteStack(stack);
+      await createStack(stack, templateUrl, params);
+      await continueJobLater(jobId, "Stack recreated after ROLLBACK_COMPLETE");
+      return;
+    }
+    if (![
+      "CREATE_COMPLETE",
+      "UPDATE_COMPLETE",
+      "UPDATE_ROLLBACK_COMPLETE"
+    ].includes(status)) {
       await putJobFailure(
         jobId,
         `Stack cannot be updated when status is: ${status}`
