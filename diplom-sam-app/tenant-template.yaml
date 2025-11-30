@@ -20,10 +20,6 @@ Parameters:
     Type: String
     Default: "prod"
     Description: "Stage Name for the API"
-  LambdaReserveConcurrency:
-    Type: Number
-    Default: 1
-    Description: "Reserved concurrency for lambda functions. Can be customized per tenant."
 
 Conditions:
   IsPooledDeploy: !Equals [!Ref TenantIdParameter, "pooled"]
@@ -150,8 +146,6 @@ Resources:
       CodeUri: src/ProductService
       Handler: handlers.getProductHandler
       Role: !GetAtt ProductFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           PRODUCT_TABLE_NAME: !Ref ProductTable
@@ -175,8 +169,6 @@ Resources:
       CodeUri: src/ProductService
       Handler: handlers.getAllProductsHandler
       Role: !GetAtt ProductFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           PRODUCT_TABLE_NAME: !Ref ProductTable
@@ -200,8 +192,6 @@ Resources:
       CodeUri: src/ProductService
       Handler: handlers.createProductHandler
       Role: !GetAtt ProductFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           PRODUCT_TABLE_NAME: !Ref ProductTable
@@ -225,8 +215,6 @@ Resources:
       CodeUri: src/ProductService
       Handler: handlers.updateProductHandler
       Role: !GetAtt ProductFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           PRODUCT_TABLE_NAME: !Ref ProductTable
@@ -250,8 +238,6 @@ Resources:
       CodeUri: src/ProductService
       Handler: handlers.deleteProductHandler
       Role: !GetAtt ProductFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           PRODUCT_TABLE_NAME: !Ref ProductTable
@@ -278,8 +264,6 @@ Resources:
       CodeUri: src/OrderService
       Handler: handlers.getOrderHandler
       Role: !GetAtt OrderFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           ORDER_TABLE_NAME: !Ref OrderTable
@@ -303,8 +287,6 @@ Resources:
       CodeUri: src/OrderService
       Handler: handlers.getAllOrdersHandler
       Role: !GetAtt OrderFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           ORDER_TABLE_NAME: !Ref OrderTable
@@ -328,8 +310,6 @@ Resources:
       CodeUri: src/OrderService
       Handler: handlers.createOrderHandler
       Role: !GetAtt OrderFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           ORDER_TABLE_NAME: !Ref OrderTable
@@ -353,8 +333,6 @@ Resources:
       CodeUri: src/OrderService
       Handler: handlers.updateOrderHandler
       Role: !GetAtt OrderFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           ORDER_TABLE_NAME: !Ref OrderTable
@@ -378,8 +356,6 @@ Resources:
       CodeUri: src/OrderService
       Handler: handlers.deleteOrderHandler
       Role: !GetAtt OrderFunctionExecutionRole.Arn
-      ReservedConcurrentExecutions:
-        !If [IsPooledDeploy, !Ref "AWS::NoValue", !Ref LambdaReserveConcurrency]
       Environment:
         Variables:
           ORDER_TABLE_NAME: !Ref OrderTable
