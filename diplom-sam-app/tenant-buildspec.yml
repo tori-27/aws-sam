@@ -1,41 +1,35 @@
 version: 0.2
 
+env:
+  variables:
+    PROJECT_DIR: diplom-sam-app
+
 phases:
   install:
     runtime-versions:
       nodejs: 20
       python: 3.11
     commands:
-      # Install SAM CLI via pip (it's a Python package, not npm!)
+      # Install SAM CLI via pip
       - pip install aws-sam-cli
       - sam --version
-      # Navigate to diplom-sam-app directory (for GitHub repo structure)
-      - cd diplom-sam-app
       # Install project dependencies
-      - npm ci
+      - cd $CODEBUILD_SRC_DIR/$PROJECT_DIR && npm ci
 
   pre_build:
     commands:
-      # Navigate to project dir (cd doesn't persist between phases)
-      - cd diplom-sam-app
       # Compile TypeScript
-      - npm run build
-      # Run tests (optional)
-      # - npm test
+      - cd $CODEBUILD_SRC_DIR/$PROJECT_DIR && npm run build
 
   build:
     commands:
-      # Navigate to project dir
-      - cd diplom-sam-app
       # Build SAM application using tenant-template.yaml
-      - sam build -t tenant-template.yaml
+      - cd $CODEBUILD_SRC_DIR/$PROJECT_DIR && sam build -t tenant-template.yaml
 
   post_build:
     commands:
-      # Navigate to project dir
-      - cd diplom-sam-app
       # Package and upload to S3
-      - sam package --s3-bucket $PACKAGE_BUCKET --output-template-file packaged.yaml
+      - cd $CODEBUILD_SRC_DIR/$PROJECT_DIR && sam package --s3-bucket $PACKAGE_BUCKET --output-template-file packaged.yaml
 
 artifacts:
   discard-paths: yes
