@@ -13,6 +13,8 @@ phases:
       # Install SAM CLI via pip
       - pip install aws-sam-cli
       - sam --version
+      # Install esbuild globally (required for SAM to bundle Lambda functions)
+      - npm install -g esbuild
       # Install project dependencies
       - cd $CODEBUILD_SRC_DIR/$PROJECT_DIR && npm ci
 
@@ -28,8 +30,8 @@ phases:
 
   post_build:
     commands:
-      # Package and upload to S3
-      - cd $CODEBUILD_SRC_DIR/$PROJECT_DIR && sam package --s3-bucket $PACKAGE_BUCKET --output-template-file packaged.yaml
+      # Package and upload to S3 (--resolve-s3 false to override samconfig.toml)
+      - cd $CODEBUILD_SRC_DIR/$PROJECT_DIR && sam package --template-file .aws-sam/build/template.yaml --s3-bucket $PACKAGE_BUCKET --output-template-file packaged.yaml --resolve-s3 false --no-progressbar
 
 artifacts:
   discard-paths: yes
