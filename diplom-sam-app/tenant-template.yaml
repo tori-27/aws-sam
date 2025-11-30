@@ -22,7 +22,7 @@ Parameters:
     Description: "Stage Name for the API"
   LambdaReserveConcurrency:
     Type: Number
-    Default: 20
+    Default: 1
     Description: "Reserved concurrency for lambda functions. Can be customized per tenant."
 
 Conditions:
