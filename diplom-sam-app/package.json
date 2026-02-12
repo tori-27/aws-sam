@@ -22,13 +22,16 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@aws-sdk/client-api-gateway": "^3.981.0",
     "@aws-sdk/client-cloudformation": "^3.922.0",
     "@aws-sdk/client-codepipeline": "^3.922.0",
     "@aws-sdk/client-dynamodb": "^3.846.0",
     "@aws-sdk/client-s3": "^3.922.0",
+    "@aws-sdk/client-sts": "^3.940.0",
     "@aws-sdk/lib-dynamodb": "^3.846.0",
     "@aws-sdk/util-dynamodb": "^3.848.0",
     "aws-cdk-lib": "2.221.1",
+    "aws-jwt-verify": "^5.1.1",
     "client-cognito-identity-provider": "github:aws-sdk/client-cognito-identity-provider",
     "client-ssm": "github:aws-sdk/client-ssm",
     "constructs": "10.4.2",

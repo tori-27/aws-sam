@@ -15,20 +15,34 @@ Globals:
       AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
       AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
       AllowOrigin: "'*'"
+    Auth:
+      DefaultAuthorizer: TenantLambdaAuthorizer
+      ApiKeyRequired: true
+      Authorizers:
+        TenantLambdaAuthorizer:
+          FunctionArn: !GetAtt AuthorizerFunction.Arn
+          FunctionPayloadType: TOKEN
+          Identity:
+            Header: Authorization
+            ValidationExpression: "^Bearer .+$"
+            ReauthorizeEvery: 300
 
 Parameters:
   PlatinumTierApiKey:
     Type: String
-    Default: "PLATINUM-KEY-DEV"
+    Default: "plt-sls-saas-key-7f3d9e24b8c11ef9a2d"
   PremiumTierApiKey:
     Type: String
-    Default: "PREMIUM-KEY-DEV"
+    Default: "prm-sls-saas-key-8e4f1a35c9d22fg0b3e"
   StandardTierApiKey:
     Type: String
-    Default: "STANDARD-KEY-DEV"
+    Default: "std-sls-saas-key-9f5e2b46d0e33gh1c4f"
   BasicTierApiKey:
     Type: String
-    Default: "BASIC-KEY-DEV"
+    Default: "bsc-sls-saas-key-0g6f3c57e1f44hi2d5g"
+  SystemAdminApiKey:
+    Type: String
+    Default: "adm-sls-saas-key-1h7g4d68f2g55ij3e6h"
 
 Resources:
   ########################
@@ -406,7 +420,14 @@ Resources:
       CodeUri: src/TenantManagmentService
       Handler: tenant-management.createTenant
       Events:
-        { ApiPost: { Type: Api, Properties: { Path: /tenant, Method: post } } }
+        {
+          ApiPost:
+            {
+              Type: Api,
+              Properties:
+                { Path: /tenant, Method: post, Auth: { Authorizer: NONE } },
+            },
+        }
       Environment:
         Variables:
           TABLE_TENANT_DETAILS: !Ref TenantDetailsTable
@@ -642,7 +663,15 @@ Resources:
       Events:
         {
           ApiPost:
-            { Type: Api, Properties: { Path: /registration, Method: post } },
+            {
+              Type: Api,
+              Properties:
+                {
+                  Path: /registration,
+                  Method: post,
+                  Auth: { Authorizer: NONE },
+                },
+            },
         }
       Environment:
         Variables:
@@ -660,6 +689,17 @@ Resources:
                 - ssm:GetParametersByPath
               Resource:
                 - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/api-keys/*
+            - Sid: ManageApiGatewayForPremiumTenants
+              Effect: Allow
+              Action:
+                - apigateway:POST
+                - apigateway:GET
+                - apigateway:PUT
+              Resource:
+                - !Sub arn:aws:apigateway:${AWS::Region}::/apikeys
+                - !Sub arn:aws:apigateway:${AWS::Region}::/apikeys/*
+                - !Sub arn:aws:apigateway:${AWS::Region}::/usageplans
+                - !Sub arn:aws:apigateway:${AWS::Region}::/usageplans/*
 
     Metadata:
       {
@@ -684,7 +724,12 @@ Resources:
           ApiPost:
             {
               Type: Api,
-              Properties: { Path: /user/tenant-admin, Method: post },
+              Properties:
+                {
+                  Path: /user/tenant-admin,
+                  Method: post,
+                  Auth: { Authorizer: NONE },
+                },
             },
         }
       Environment:
@@ -781,6 +826,8 @@ Resources:
           Properties:
             Path: /provisioning
             Method: post
+            Auth:
+              Authorizer: NONE
       Environment:
         Variables:
           TENANT_STACK_MAPPING_TABLE_NAME: !Ref TenantStackMappingTable
@@ -849,6 +896,236 @@ Resources:
       ResourceGroupName: !Ref ApplicationResourceGroup
       AutoConfigurationEnabled: true
 
+  ########################
+  # Lambda Authorizer
+  ########################
+  AuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TenantAuthorizer
+      CodeUri: src/AuthService
+      Handler: authorizer.handler
+      Timeout: 10
+      Environment:
+        Variables:
+          TABLE_TENANT_DETAILS: !Ref TenantDetailsTable
+          POOLED_USER_POOL_ID: !Ref PooledUserPool
+          POOLED_APP_CLIENT_ID: !Ref PooledUserPoolClient
+          OPERATION_USERS_API_KEY: !Ref SystemAdminApiKey
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref TenantDetailsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - sts:AssumeRole
+              Resource: !GetAtt AuthorizerAccessRole.Arn
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: es2020
+        Sourcemap: true
+        EntryPoints: [authorizer.ts]
+        External: ["@aws-sdk/*"]
+
+  ########################
+  # IAM Role for Authorizer STS
+  ########################
+  AuthorizerAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: authorizer-access-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Product-*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/Order-*"
+                  - !GetAtt ProductTable.Arn
+                  - !GetAtt OrderTable.Arn
+
+  ########################
+  # API Keys
+  ########################
+  ApiKeyPlatinumTier:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: ServerlessSaaS-Platinum-Key-v2
+      Description: API key for Platinum tier tenants
+      Enabled: true
+      Value: !Ref PlatinumTierApiKey
+
+  ApiKeyPremiumTier:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: ServerlessSaaS-Premium-Key-v2
+      Description: API key for Premium tier tenants
+      Enabled: true
+      Value: !Ref PremiumTierApiKey
+
+  ApiKeyStandardTier:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: ServerlessSaaS-Standard-Key-v2
+      Description: API key for Standard tier tenants
+      Enabled: true
+      Value: !Ref StandardTierApiKey
+
+  ApiKeyBasicTier:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: ServerlessSaaS-Basic-Key-v2
+      Description: API key for Basic tier tenants
+      Enabled: true
+      Value: !Ref BasicTierApiKey
+
+  ApiKeySystemAdmin:
+    Type: AWS::ApiGateway::ApiKey
+    Properties:
+      Name: ServerlessSaaS-Admin-Key-v2
+      Description: API key for System Administrators
+      Enabled: true
+      Value: !Ref SystemAdminApiKey
+
+  ########################
+  # Usage Plans
+  ########################
+  UsagePlanPlatinumTier:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: ServerlessRestApiProdStage
+    Properties:
+      UsagePlanName: Plan_Platinum_Tier
+      Description: Usage plan for Platinum tier tenants - highest limits
+      ApiStages:
+        - ApiId: !Ref ServerlessRestApi
+          Stage: Prod
+      Quota:
+        Limit: 10000
+        Period: DAY
+      Throttle:
+        BurstLimit: 300
+        RateLimit: 300
+
+  UsagePlanPremiumTier:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: ServerlessRestApiProdStage
+    Properties:
+      UsagePlanName: Plan_Premium_Tier
+      Description: Usage plan for Premium tier tenants
+      ApiStages:
+        - ApiId: !Ref ServerlessRestApi
+          Stage: Prod
+      Quota:
+        Limit: 5000
+        Period: DAY
+      Throttle:
+        BurstLimit: 200
+        RateLimit: 100
+
+  UsagePlanStandardTier:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: ServerlessRestApiProdStage
+    Properties:
+      UsagePlanName: Plan_Standard_Tier
+      Description: Usage plan for Standard tier tenants
+      ApiStages:
+        - ApiId: !Ref ServerlessRestApi
+          Stage: Prod
+      Quota:
+        Limit: 3000
+        Period: DAY
+      Throttle:
+        BurstLimit: 100
+        RateLimit: 75
+
+  UsagePlanBasicTier:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: ServerlessRestApiProdStage
+    Properties:
+      UsagePlanName: Plan_Basic_Tier
+      Description: Usage plan for Basic tier tenants - lowest limits
+      ApiStages:
+        - ApiId: !Ref ServerlessRestApi
+          Stage: Prod
+      Quota:
+        Limit: 500
+        Period: DAY
+      Throttle:
+        BurstLimit: 50
+        RateLimit: 50
+
+  UsagePlanSystemAdmin:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: ServerlessRestApiProdStage
+    Properties:
+      UsagePlanName: Plan_System_Admin
+      Description: Usage plan for System Administrators
+      ApiStages:
+        - ApiId: !Ref ServerlessRestApi
+          Stage: Prod
+      Quota:
+        Limit: 50000
+        Period: DAY
+      Throttle:
+        BurstLimit: 500
+        RateLimit: 500
+
+  ########################
+  # Usage Plan Key Associations
+  ########################
+  UsagePlanKeyPlatinum:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKeyPlatinumTier
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlanPlatinumTier
+
+  UsagePlanKeyPremium:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKeyPremiumTier
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlanPremiumTier
+
+  UsagePlanKeyStandard:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKeyStandardTier
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlanStandardTier
+
+  UsagePlanKeyBasic:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKeyBasicTier
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlanBasicTier
+
+  UsagePlanKeySystemAdmin:
+    Type: AWS::ApiGateway::UsagePlanKey
+    Properties:
+      KeyId: !Ref ApiKeySystemAdmin
+      KeyType: API_KEY
+      UsagePlanId: !Ref UsagePlanSystemAdmin
+
 Outputs:
   ApiBaseUrl:
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
@@ -864,3 +1141,13 @@ Outputs:
     Value: !Ref PooledUserPoolClient
   TenantStackMappingTableName:
     Value: !Ref TenantStackMappingTable
+  AuthorizerFunctionArn:
+    Value: !GetAtt AuthorizerFunction.Arn
+  UsagePlanBasicTierId:
+    Value: !Ref UsagePlanBasicTier
+  UsagePlanStandardTierId:
+    Value: !Ref UsagePlanStandardTier
+  UsagePlanPremiumTierId:
+    Value: !Ref UsagePlanPremiumTier
+  UsagePlanPlatinumTierId:
+    Value: !Ref UsagePlanPlatinumTier

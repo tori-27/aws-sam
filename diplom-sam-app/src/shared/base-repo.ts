@@ -19,8 +19,12 @@ export class BaseRepo<TItem extends Record<string, any>> {
     private toItem: (obj: TItem) => any
   ) {}
 
-  async get(key: Record<string, string>) {
-    const res = await ddbDocClient.send(
+  /**
+   * Get item by key using scoped client for tenant isolation
+   */
+  async get(key: Record<string, string>, client?: DynamoDBDocumentClient) {
+    const ddb = client || ddbDocClient;
+    const res = await ddb.send(
       new GetCommand({
         TableName: this.tableName,
         Key: key,
@@ -30,27 +34,45 @@ export class BaseRepo<TItem extends Record<string, any>> {
     return res.Item ? this.fromItem(res.Item) : null;
   }
 
-  async scan(limit?: number) {
-    const res = await ddbDocClient.send(
+  /**
+   * Scan table (uses default client - typically for admin operations)
+   */
+  async scan(limit?: number, client?: DynamoDBDocumentClient) {
+    const ddb = client || ddbDocClient;
+    const res = await ddb.send(
       new ScanCommand({
         TableName: this.tableName,
         Limit: limit,
+        ReturnConsumedCapacity: "TOTAL",
       })
     );
     return (res.Items ?? []).map(this.fromItem);
   }
 
-  async put(item: TItem) {
-    await ddbDocClient.send(
+  /**
+   * Put item using scoped client for tenant isolation
+   */
+  async put(item: TItem, client?: DynamoDBDocumentClient) {
+    const ddb = client || ddbDocClient;
+    await ddb.send(
       new PutCommand({
         TableName: this.tableName,
         Item: this.toItem(item),
+        ReturnConsumedCapacity: "TOTAL",
       })
     );
     return item;
   }
 
-  async update(key: Record<string, string>, attrs: Record<string, any>) {
+  /**
+   * Update item using scoped client for tenant isolation
+   */
+  async update(
+    key: Record<string, string>,
+    attrs: Record<string, any>,
+    client?: DynamoDBDocumentClient
+  ) {
+    const ddb = client || ddbDocClient;
     const names: Record<string, string> = {};
     const values: Record<string, any> = {};
     const sets: string[] = [];
@@ -63,9 +85,9 @@ export class BaseRepo<TItem extends Record<string, any>> {
       sets.push(`${nk} = ${vk}`);
     });
 
-    if (sets.length === 0) return this.get(key);
+    if (sets.length === 0) return this.get(key, ddb);
 
-    const res = await ddbDocClient.send(
+    const res = await ddb.send(
       new UpdateCommand({
         TableName: this.tableName,
         Key: key,
@@ -73,29 +95,40 @@ export class BaseRepo<TItem extends Record<string, any>> {
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
         ReturnValues: "ALL_NEW",
+        ReturnConsumedCapacity: "TOTAL",
       })
     );
     return res.Attributes ? this.fromItem(res.Attributes) : null;
   }
 
-  async delete(key: Record<string, string>) {
-    const res = await ddbDocClient.send(
+  /**
+   * Delete item using scoped client for tenant isolation
+   */
+  async delete(key: Record<string, string>, client?: DynamoDBDocumentClient) {
+    const ddb = client || ddbDocClient;
+    const res = await ddb.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: key,
         ReturnValues: "ALL_OLD",
+        ReturnConsumedCapacity: "TOTAL",
       })
     );
     return res.Attributes ? this.fromItem(res.Attributes) : null;
   }
 
-  async queryByShard(ddb: DynamoDBDocumentClient, shardId: string) {
+  /**
+   * Query by shard using scoped client for tenant isolation
+   */
+  async queryByShard(shardId: string, client?: DynamoDBDocumentClient) {
+    const ddb = client || ddbDocClient;
     const r = await ddb.send(
       new QueryCommand({
         TableName: this.tableName,
         KeyConditionExpression: "#pk = :v",
         ExpressionAttributeNames: { "#pk": "shardId" },
         ExpressionAttributeValues: { ":v": shardId },
+        ReturnConsumedCapacity: "TOTAL",
       })
     );
     return (r.Items ?? []).map(this.fromItem);

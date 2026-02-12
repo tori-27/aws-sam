@@ -1,14 +1,8 @@
 import { BaseRepo } from "../shared/base-repo";
-import {
-  randShard,
-  parseKey,
-  shardForTenant,
-  getTenantId,
-  allShardsForTenant,
-} from "../shared/tenant";
+import { parseKey, shardForTenant, allShardsForTenant } from "../shared/tenant";
 import { v4 as uuidv4 } from "uuid";
 import { Order } from "./order-model";
-import { ddbDocClient } from "../shared/ddb";
+import { createScopedDdbClient, getTenantIdFromEvent } from "../shared/ddb";
 
 const TABLE_NAME = process.env.ORDER_TABLE_NAME!;
 
@@ -16,52 +10,74 @@ const repo = new BaseRepo<Order>(
   TABLE_NAME,
   { shardId: "shardId", id: "orderId" },
   (raw) => Order.fromItem(raw),
-  (o) => o.toItem()
+  (o) => o.toItem(),
 );
 
-export const getOrder = async (_evt: any, key: string) => {
+/**
+ * Get order by key using tenant-scoped credentials
+ */
+export const getOrder = async (event: any, key: string) => {
+  const client = createScopedDdbClient(event);
   const { shardId, id } = parseKey(key);
-  return repo.get({ shardId, orderId: id });
+  return repo.get({ shardId, orderId: id }, client);
 };
 
-export const getAllOrders = async (evt: any) => {
-  const tenantId = getTenantId(evt);
-  const shards = allShardsForTenant(tenantId, 1, 10);
+/**
+ * Get all orders for tenant using scoped credentials
+ */
+export const getAllOrders = async (event: any) => {
+  const client = createScopedDdbClient(event);
+  const tenantId = getTenantIdFromEvent(event);
+  // allShardsForTenant now correctly uses default (1, 11) to get shards 1-10
+  const shards = allShardsForTenant(tenantId);
   const results = await Promise.all(
-    shards.map((s) => repo.queryByShard(ddbDocClient, s))
+    shards.map((s) => repo.queryByShard(s, client)),
   );
   return results.flat();
 };
 
-export const deleteOrder = async (_evt: any, key: string) => {
+/**
+ * Delete order using tenant-scoped credentials
+ */
+export const deleteOrder = async (event: any, key: string) => {
+  const client = createScopedDdbClient(event);
   const { shardId, id } = parseKey(key);
-  return repo.delete({ shardId, orderId: id });
+  return repo.delete({ shardId, orderId: id }, client);
 };
 
+/**
+ * Update order using tenant-scoped credentials
+ */
 export const updateOrder = async (
-  _evt: any,
+  event: any,
   payload: Partial<Order>,
-  key: string
+  key: string,
 ) => {
+  const client = createScopedDdbClient(event);
   const { shardId, id } = parseKey(key);
   return repo.update(
     { shardId, orderId: id },
-    { orderName: payload.orderName, orderProducts: payload.orderProducts }
+    { orderName: payload.orderName, orderProducts: payload.orderProducts },
+    client,
   );
 };
 
+/**
+ * Create order using tenant-scoped credentials
+ */
 export const createOrder = async (
-  evt: any,
-  payload: Pick<Order, "orderName" | "orderProducts">
+  event: any,
+  payload: Pick<Order, "orderName" | "orderProducts">,
 ) => {
-  const tenantId = getTenantId(evt);
+  const client = createScopedDdbClient(event);
+  const tenantId = getTenantIdFromEvent(event);
   const shardId = shardForTenant(tenantId);
   const orderId = uuidv4();
   const order = new Order(
     shardId,
     orderId,
     payload.orderName,
-    payload.orderProducts
+    payload.orderProducts,
   );
-  return repo.put(order);
+  return repo.put(order, client);
 };

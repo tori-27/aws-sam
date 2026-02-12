@@ -21,5 +21,6 @@ export const randSuffix = (from = 1, to = 11) =>
 export const shardForTenant = (tenantId: string, suffix?: string) =>
   `${tenantId}-${suffix ?? randSuffix()}`;
 
-export const allShardsForTenant = (tenantId: string, start = 1, end = 10) =>
+// Generate all possible shard IDs for a tenant (1 to 10 inclusive)
+export const allShardsForTenant = (tenantId: string, start = 1, end = 11) =>
   Array.from({ length: end - start }, (_, i) => `${tenantId}-${i + start}`);
